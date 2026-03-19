@@ -373,7 +373,7 @@ padding-right:env(safe-area-inset-right);}
   </div>
 </div>
 
-<div id="gmodal" onclick="if(event.target===this)closeGame();">
+<div id="gmodal">
   <div id="gbox">
     <div id="gtitle"></div>
     <div id="gdesc"></div>
@@ -569,18 +569,41 @@ function stopCompose(){
 var stars=0;
 function addStars(n){stars+=n;document.getElementById('sc').textContent=stars;document.getElementById('sc2').textContent=stars;}
 var rhInt=null;
-function openGame(id){resume();document.getElementById('gmodal').classList.add('on');document.getElementById('gcontent').innerHTML='';if(id==='readnote')buildNR();else if(id==='rhythm')buildRhythm();else if(id==='culture')buildCulture();else if(id==='chord')buildChord();else if(id==='scale')buildScale();}
+function openGame(id){
+  resume();
+  // Reset all done flags on every open
+  nrDone=false;cqDone=false;
+  document.getElementById('gmodal').classList.add('on');
+  document.getElementById('gcontent').innerHTML='';
+  if(id==='readnote')buildNR();
+  else if(id==='rhythm')buildRhythm();
+  else if(id==='culture')buildCulture();
+  else if(id==='chord')buildChord();
+  else if(id==='scale')buildScale();
+}
+// Tap backdrop to close
+document.getElementById('gmodal').addEventListener('click',function(e){
+  if(e.target===this)closeGame();
+});
 function closeGame(){document.getElementById('gmodal').classList.remove('on');stopRhythm();}
 
 // NOTE READING
-var nrScore=0,nrRound=0,nrTotal=8,nrAns='',nrDone=false;
+var nrScore=0,nrRound=0,nrTotal=8,nrDone=false;
 var NRN=[{midi:64,top:52,n:'E'},{midi:65,top:44,n:'F'},{midi:67,top:36,n:'G'},{midi:69,top:28,n:'A'},{midi:71,top:20,n:'B'},{midi:72,top:12,n:'C'},{midi:74,top:4,n:'D'},{midi:76,top:-4,n:'E'}];
-function buildNR(){document.getElementById('gtitle').textContent='Read the Notes';document.getElementById('gdesc').textContent='Name the note shown on the staff!';nrScore=0;nrRound=0;nrDone=false;nextNR();}
+function buildNR(){
+  document.getElementById('gtitle').textContent='Read the Notes';
+  document.getElementById('gdesc').textContent='Name the note shown on the staff!';
+  nrScore=0;nrRound=0;nrDone=false;nextNR();
+}
 function nextNR(){
-  if(nrRound>=nrTotal){document.getElementById('gcontent').innerHTML='<div style="text-align:center;font-size:1.1rem;font-weight:900">Done! '+nrScore+'/'+nrTotal+'<br><br><button class="gbtn" style="background:#d97706;color:#fff" onclick="addStars('+nrScore+');buildNR()">Play Again</button></div>';return;}
+  if(nrRound>=nrTotal){
+    document.getElementById('gcontent').innerHTML='<div style="text-align:center;font-size:1.1rem;font-weight:900">Done! '+nrScore+'/'+nrTotal+'<br><br><button class="gbtn" style="background:#d97706;color:#fff" onclick="addStars('+nrScore+');buildNR()">Play Again</button></div>';
+    return;
+  }
   nrRound++;nrDone=false;
-  var note=NRN[Math.floor(Math.random()*NRN.length)];nrAns=note.n;
-  var all=['C','D','E','F','G','A','B'],opts=new Set([nrAns]);
+  var note=NRN[Math.floor(Math.random()*NRN.length)];
+  var ans=note.n;
+  var all=['C','D','E','F','G','A','B'],opts=new Set([ans]);
   while(opts.size<4)opts.add(all[Math.floor(Math.random()*7)]);
   var arr=Array.from(opts).sort(function(){return Math.random()-0.5;});
   var nt=50+note.top-10;
@@ -588,42 +611,52 @@ function nextNR(){
   staff+='<div style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:3rem;color:#ffffff33;line-height:1">&#119070;</div>';
   for(var li=0;li<5;li++)staff+='<div style="position:absolute;left:40px;right:8px;top:'+(14+li*14)+'px;height:2px;background:#ffffff2a"></div>';
   staff+='<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fbbf24;border:2px solid #f59e0b;left:50%;transform:translateX(-50%);top:'+nt+'px"></div></div>';
-  document.getElementById('gcontent').innerHTML=
+  var gc=document.getElementById('gcontent');
+  gc.innerHTML=
     '<div class="pbar"><div class="pfill" style="width:'+Math.round(nrRound/nrTotal*100)+'%"></div></div>'+
-    '<div class="gscore">Round '+nrRound+'/'+nrTotal+' Score: '+nrScore+'</div>'+
+    '<div class="gscore">Round '+nrRound+'/'+nrTotal+' | Score: '+nrScore+'</div>'+
     staff+
-    '<button class="gbtn" style="background:#1d4ed8;color:#fff;display:block;margin:4px auto" onclick="resume();playPiano('+note.midi+',1,0.38)">Hear it</button>'+
-    '<div class="nropts" id="nropts">'+arr.map(function(n){return '<div class="nropt" data-val="'+n+'">'+n+'</div>';}).join('')+'</div>'+
+    '<button class="gbtn" id="nrplaybtn" style="background:#1d4ed8;color:#fff;display:block;margin:4px auto">&#9654; Hear it</button>'+
+    '<div class="nropts">'+arr.map(function(n){return '<div class="nropt" data-val="'+n+'" onclick="pickNR(this.dataset.val)">'+n+'</div>';}).join('')+'</div>'+
     '<div class="gfb" id="nrfb"></div>';
-  setTimeout(function(){
-    var container=document.getElementById('nropts');
-    if(container){
-      (function(el,ans){
-        el.addEventListener('click',function(e){
-          var t=e.target;if(!t.classList.contains('nropt'))return;
-          if(nrDone)return;nrDone=true;
-          var ok=t.dataset.val===ans;
-          if(ok)nrScore++;
-          el.querySelectorAll('.nropt').forEach(function(o){
-            o.classList.add(o.dataset.val===ans?'ok':(o===t&&!ok?'no':''));
-            o.style.pointerEvents='none';
-          });
-          var fb=document.getElementById('nrfb');
-          if(fb)fb.innerHTML=ok?'<span style="color:#10b981">Correct!</span>':'<span style="color:#ef4444">It was '+ans+'</span>';
-          setTimeout(nextNR,1100);
-        });
-      })(container,nrAns);
-    }
-  },50);
+  // Attach play button with local note
+  var pb=document.getElementById('nrplaybtn');
+  if(pb){(function(m){pb.addEventListener('click',function(){resume();playPiano(m,1,0.38);});})(note.midi);}
+}
+function pickNR(val){
+  if(nrDone)return;
+  nrDone=true;
+  var ok=val===nrAns;
+  if(ok)nrScore++;
+  document.querySelectorAll('.nropt').forEach(function(o){
+    if(o.dataset.val===nrAns)o.classList.add('ok');
+    else if(o.dataset.val===val&&!ok)o.classList.add('no');
+    o.style.pointerEvents='none';
+  });
+  var fb=document.getElementById('nrfb');
+  if(fb)fb.innerHTML=ok?'<span style="color:#10b981">Correct!</span>':'<span style="color:#ef4444">It was '+nrAns+'</span>';
+  setTimeout(nextNR,1200);
 }
 
 // RHYTHM
-var rhScore=0,rhCombo=0,rhPlay=false,rhFall=false;
-function buildRhythm(){document.getElementById('gtitle').textContent='Rhythm Tap';document.getElementById('gdesc').textContent='Tap when the note hits the target!';rhScore=0;rhCombo=0;rhPlay=false;rhFall=false;document.getElementById('gcontent').innerHTML='<div class="gscore" id="rhsc">Score: 0 Combo: 0x</div><div class="rlane" id="rhl"><div class="rtgt">&#127925;</div><div class="rnote" id="rhn" style="display:none">&#127925;</div></div><button class="gbtn" style="background:#10b981;color:#000;width:100%;margin-top:8px;font-size:1rem" onclick="rhTap()">TAP!</button><div class="gfb" id="rhfb"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="gbtn" style="background:#1d4ed8;color:#fff" onclick="startRhythm()">Start</button><button class="gbtn" style="background:#374151;color:#e5e7eb" onclick="stopRhythm()">Stop</button></div>';}
+var rhScore=0,rhCombo=0,rhPlay=false,rhFall=false,rhInt=null;
+function buildRhythm(){
+  document.getElementById('gtitle').textContent='Rhythm Tap';
+  document.getElementById('gdesc').textContent='Tap when the note hits the target!';
+  rhScore=0;rhCombo=0;rhPlay=false;rhFall=false;
+  document.getElementById('gcontent').innerHTML=
+    '<div class="gscore" id="rhsc">Score: 0 &nbsp; Combo: 0x</div>'+
+    '<div class="rlane" id="rhl"><div class="rtgt">&#127925;</div><div class="rnote" id="rhn" style="display:none">&#127925;</div></div>'+
+    '<button class="gbtn" style="background:#10b981;color:#000;width:100%;margin-top:8px;font-size:1rem" onclick="rhTap()">TAP!</button>'+
+    '<div class="gfb" id="rhfb"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px">'+
+    '<button class="gbtn" style="background:#1d4ed8;color:#fff" onclick="startRhythm()">Start</button>'+
+    '<button class="gbtn" style="background:#374151;color:#e5e7eb" onclick="stopRhythm()">Stop</button></div>';
+}
 function startRhythm(){stopRhythm();rhPlay=true;dropRN();rhInt=setInterval(dropRN,750);}
 function stopRhythm(){rhPlay=false;if(rhInt){clearInterval(rhInt);rhInt=null;}rhFall=false;var n=document.getElementById('rhn');if(n)n.style.display='none';}
 function dropRN(){if(!rhPlay)return;var n=document.getElementById('rhn');if(!n)return;n.style.display='flex';n.style.transition='none';n.style.top='-50px';rhFall=true;setTimeout(function(){n.style.transition='top 0.68s linear';n.style.top='44px';},20);setTimeout(function(){if(rhFall){rhFall=false;n.style.display='none';rhMiss();}},720);}
-function rhTap(){if(!rhPlay)return;if(!rhFall){rhCombo=0;setRhFB('<span style="color:#f59e0b">Too early!</span>');return;}var n=document.getElementById('rhn');if(!n)return;var t=parseFloat(n.style.top||0),ok=t>=14&&t<=68;if(ok){rhScore+=10+rhCombo*2;rhCombo++;resume();playHihat(false,0.36);rhFall=false;n.style.display='none';setRhFB('<span style="color:#10b981">'+(rhCombo>2?'COMBO x'+rhCombo:'Nice!')+'</span>');}else{rhCombo=0;setRhFB('<span style="color:#f59e0b">Off beat</span>');}var s=document.getElementById('rhsc');if(s)s.textContent='Score: '+rhScore+' Combo: '+rhCombo+'x';}
+function rhTap(){if(!rhPlay)return;if(!rhFall){rhCombo=0;setRhFB('<span style="color:#f59e0b">Too early!</span>');return;}var n=document.getElementById('rhn');if(!n)return;var t=parseFloat(n.style.top||0),ok=t>=14&&t<=68;if(ok){rhScore+=10+rhCombo*2;rhCombo++;resume();playHihat(false,0.36);rhFall=false;n.style.display='none';setRhFB('<span style="color:#10b981">'+(rhCombo>2?'COMBO x'+rhCombo:'Nice!')+'</span>');}else{rhCombo=0;setRhFB('<span style="color:#f59e0b">Off beat</span>');}var s=document.getElementById('rhsc');if(s)s.textContent='Score: '+rhScore+' \u00a0 Combo: '+rhCombo+'x';}
 function rhMiss(){rhCombo=0;setRhFB('<span style="color:#ef4444">Missed!</span>');}
 function setRhFB(h){var el=document.getElementById('rhfb');if(el)el.innerHTML=h;}
 
@@ -635,30 +668,85 @@ var CQQ=[
   {e:'&#129749;',q:'Long-necked lute with gourd body from India.',opts:['Sitar','Oud','Bouzouki','Shamisen'],a:'Sitar',f:'Ravi Shankar made sitar world-famous. Its sympathetic strings vibrate on their own!'},
   {e:'&#129371;',q:'A vessel flute found in Native American and folk music.',opts:['Ocarina','Recorder','Pennywhistle','Shakuhachi'],a:'Ocarina',f:'Ocarinas date back thousands of years in China, Mesoamerica, and Europe.'},
   {e:'&#127927;',q:'Jazz was born in which U.S. city?',opts:['New Orleans','New York','Chicago','Memphis'],a:'New Orleans',f:'New Orleans blended African rhythms, blues, and European harmony around 1900.'},
-  {e:'&#127931;',q:'The Erhu is a two-stringed instrument from which culture?',opts:['Chinese','Japanese','Korean','Indian'],a:'Chinese',f:'The Erhu is called the Chinese violin — incredibly expressive!'},
+  {e:'&#127931;',q:'The Erhu is a two-stringed instrument from which culture?',opts:['Chinese','Japanese','Korean','Indian'],a:'Chinese',f:'The Erhu is called the Chinese violin - incredibly expressive!'},
   {e:'&#129345;',q:'The Djembe drum originated from which continent?',opts:['Africa','South America','Asia','Europe'],a:'Africa',f:'The Djembe is from West Africa, used in celebrations and ceremonies.'},
 ];
 var cqScore=0,cqRound=0,cqList=[],cqDone=false;
-function buildCulture(){document.getElementById('gtitle').textContent='World Music Quiz';document.getElementById('gdesc').textContent='Match instruments to their cultures!';cqScore=0;cqRound=0;cqDone=false;cqList=CQQ.slice().sort(function(){return Math.random()-0.5;}).slice(0,6);nextCQ();}
-function nextCQ(){
-  if(cqRound>=cqList.length){document.getElementById('gcontent').innerHTML='<div style="text-align:center;font-size:1.1rem;font-weight:900">Done! '+cqScore+'/'+cqList.length+'<br><br><button class="gbtn" style="background:#ef4444;color:#fff" onclick="addStars('+cqScore+');buildCulture()">Play Again</button></div>';return;}
-  var q=cqList[cqRound];cqRound++;cqDone=false;
-  document.getElementById('gcontent').innerHTML='<div class="pbar"><div class="pfill" style="width:'+Math.round((cqRound-1)/cqList.length*100)+'%"></div></div><div class="gscore">Round '+cqRound+'/'+cqList.length+' Score: '+cqScore+'</div><div style="font-size:3rem;text-align:center;padding:10px;background:#1c2537;border-radius:10px;margin:8px 0">'+q.e+'</div><p style="font-size:0.82rem;font-weight:700;margin:8px 0;line-height:1.5">'+q.q+'</p><div class="cqopts" id="cqopts">'+q.opts.map(function(o){return '<div class="cqopt" data-val="'+o.replace(/"/g,'&quot;')+'">'+o+'</div>';}).join('')+'</div><div class="gfb" id="cqfb"></div>';
-  setTimeout(function(){var opts=document.getElementById('cqopts');if(opts)opts.addEventListener('click',function(e){var t=e.target;if(!t.classList.contains('cqopt'))return;chkCQ(t,t.dataset.val);});},50);
+function buildCulture(){
+  document.getElementById('gtitle').textContent='World Music Quiz';
+  document.getElementById('gdesc').textContent='Match instruments to their cultures!';
+  cqScore=0;cqRound=0;cqDone=false;
+  cqList=CQQ.slice().sort(function(){return Math.random()-0.5;}).slice(0,6);
+  nextCQ();
 }
-function chkCQ(el,picked){if(cqDone)return;cqDone=true;var q=cqList[cqRound-1],ok=picked===q.a;if(ok)cqScore++;document.querySelectorAll('.cqopt').forEach(function(o){o.classList.add(o.dataset.val===q.a?'ok':(o===el&&!ok?'no':''));o.style.pointerEvents='none';});document.getElementById('cqfb').innerHTML=(ok?'<span style="color:#10b981">Correct!</span>':'<span style="color:#ef4444">'+q.a+'</span>')+'<div style="font-size:0.7rem;color:#94a3b8;margin-top:4px">'+q.f+'</div>';setTimeout(nextCQ,1700);}
+function pickCQ(val){
+  if(cqDone)return;
+  cqDone=true;
+  var q=cqList[cqRound-1];
+  var ok=val===q.a;
+  if(ok)cqScore++;
+  document.querySelectorAll('.cqopt').forEach(function(o){
+    if(o.dataset.val===q.a)o.classList.add('ok');
+    else if(o.dataset.val===val&&!ok)o.classList.add('no');
+    o.style.pointerEvents='none';
+  });
+  var fb=document.getElementById('cqfb');
+  if(fb)fb.innerHTML=(ok?'<span style="color:#10b981">Correct!</span>':'<span style="color:#ef4444">'+q.a+'</span>')+'<div style="font-size:0.7rem;color:#94a3b8;margin-top:4px">'+q.f+'</div>';
+  setTimeout(nextCQ,1800);
+}
+function nextCQ(){
+  if(cqRound>=cqList.length){
+    document.getElementById('gcontent').innerHTML='<div style="text-align:center;font-size:1.1rem;font-weight:900">Done! '+cqScore+'/'+cqList.length+'<br><br><button class="gbtn" style="background:#ef4444;color:#fff" onclick="addStars('+cqScore+');buildCulture()">Play Again</button></div>';
+    return;
+  }
+  var q=cqList[cqRound];
+  cqRound++;cqDone=false;
+  document.getElementById('gcontent').innerHTML=
+    '<div class="pbar"><div class="pfill" style="width:'+Math.round((cqRound-1)/cqList.length*100)+'%"></div></div>'+
+    '<div class="gscore">Round '+cqRound+'/'+cqList.length+' | Score: '+cqScore+'</div>'+
+    '<div style="font-size:3rem;text-align:center;padding:10px;background:#1c2537;border-radius:10px;margin:8px 0">'+q.e+'</div>'+
+    '<p style="font-size:0.82rem;font-weight:700;margin:8px 0;line-height:1.5">'+q.q+'</p>'+
+    '<div class="cqopts">'+q.opts.map(function(o){return '<div class="cqopt" data-val="'+o+'" onclick="pickCQ(this.dataset.val)">'+o+'</div>';}).join('')+'</div>'+
+    '<div class="gfb" id="cqfb"></div>';
+}
 
 // CHORD BUILDER
-var CHDS=[{n:'C Major',ivs:[0,4,7],d:'Happy, bright'},{n:'A Minor',ivs:[0,3,7],d:'Sad, emotional'},{n:'G Major',ivs:[0,4,7],d:'Full resonant'},{n:'D Minor',ivs:[0,3,7],d:'Dark, serious'},{n:'C7',ivs:[0,4,7,10],d:'Bluesy, tension'},{n:'Am7',ivs:[0,3,7,10],d:'Jazzy, floating'}];
+var CHDS=[
+  {n:'C Major',ivs:[0,4,7],d:'Happy, bright'},
+  {n:'A Minor',ivs:[0,3,7],d:'Sad, emotional'},
+  {n:'G Major',ivs:[0,4,7],d:'Full, resonant'},
+  {n:'D Minor',ivs:[0,3,7],d:'Dark, serious'},
+  {n:'C7',ivs:[0,4,7,10],d:'Bluesy, tension'},
+  {n:'Am7',ivs:[0,3,7,10],d:'Jazzy, floating'}
+];
 var cbIdx=0,cbSel=[];
-function buildChord(){document.getElementById('gtitle').textContent='Chord Builder';document.getElementById('gdesc').textContent='Select notes to build the chord!';cbSel=[];nextChord();}
-function nextChord(){cbIdx=Math.floor(Math.random()*CHDS.length);cbSel=[];var ch=CHDS[cbIdx];var disp=[60,62,64,65,67,69,71,72,74,76,77,79];document.getElementById('gcontent').innerHTML='<div class="gscore">Build: <b style="color:#48dbfb">'+ch.n+'</b> - '+ch.d+'</div><p style="font-size:0.74rem;color:#6b7a99;margin:5px 0">Select '+ch.ivs.length+' notes that match.</p><div class="cbkeys">'+disp.map(function(m){return '<div class="cbkey" data-midi="'+m+'" onclick="togCB(this,'+m+')">'+nL(m)+'</div>';}).join('')+'</div><div class="chord-name" id="cname">Select notes...</div><div style="display:flex;gap:7px;flex-wrap:wrap"><button class="gbtn" style="background:#0891b2;color:#fff" onclick="hearChord()">Hear Target</button><button class="gbtn" style="background:#10b981;color:#000" onclick="chkChord()">Check!</button><button class="gbtn" style="background:#374151;color:#e5e7eb" onclick="resetChord()">Reset</button><button class="gbtn" style="background:#1d4ed8;color:#fff" onclick="nextChord()">Next</button></div><div class="gfb" id="cbfb"></div>';}
+function buildChord(){
+  document.getElementById('gtitle').textContent='Chord Builder';
+  document.getElementById('gdesc').textContent='Select notes to build the chord!';
+  cbSel=[];nextChord();
+}
+function nextChord(){
+  cbIdx=Math.floor(Math.random()*CHDS.length);cbSel=[];
+  var ch=CHDS[cbIdx];
+  var disp=[60,62,64,65,67,69,71,72,74,76,77,79];
+  document.getElementById('gcontent').innerHTML=
+    '<div class="gscore">Build: <b style="color:#48dbfb">'+ch.n+'</b> - '+ch.d+'</div>'+
+    '<p style="font-size:0.74rem;color:#6b7a99;margin:5px 0">Select '+ch.ivs.length+' notes that match.</p>'+
+    '<div class="cbkeys">'+disp.map(function(m){return '<div class="cbkey" data-midi="'+m+'" onclick="togCB(this,'+m+')">'+nL(m)+'</div>';}).join('')+'</div>'+
+    '<div class="chord-name" id="cname">Select notes...</div>'+
+    '<div style="display:flex;gap:7px;flex-wrap:wrap">'+
+    '<button class="gbtn" style="background:#0891b2;color:#fff" onclick="hearChord()">Hear Target</button>'+
+    '<button class="gbtn" style="background:#10b981;color:#000" onclick="chkChord()">Check!</button>'+
+    '<button class="gbtn" style="background:#374151;color:#e5e7eb" onclick="resetChord()">Reset</button>'+
+    '<button class="gbtn" style="background:#1d4ed8;color:#fff" onclick="nextChord()">Next</button></div>'+
+    '<div class="gfb" id="cbfb"></div>';
+}
 function resetChord(){cbSel=[];document.querySelectorAll('.cbkey').forEach(function(k){k.classList.remove('on');});var nm=document.getElementById('cname');if(nm)nm.textContent='Select notes...';}
 function hearChord(){var ch=CHDS[cbIdx];ch.ivs.forEach(function(iv,i){setTimeout(function(){resume();playPiano(60+iv,1.4,0.36);},i*55);});}
 function togCB(el,midi){var on=el.classList.toggle('on');if(on){cbSel.push(midi%12);resume();playPiano(midi,0.5,0.3);}else{cbSel=cbSel.filter(function(m){return m!==midi%12;});}var nm=document.getElementById('cname');if(nm)nm.textContent=cbSel.length?cbSel.map(function(m){return NN[m];}).join(' + '):'Select notes...';}
 function chkChord(){var ch=CHDS[cbIdx];var tgt=ch.ivs.map(function(iv){return(60+iv)%12;}).sort(function(a,b){return a-b;});var sel=cbSel.slice().sort(function(a,b){return a-b;});var ok=tgt.length===sel.length&&tgt.every(function(v,i){return v===sel[i];});var fb=document.getElementById('cbfb');if(ok){hearChord();addStars(2);fb.innerHTML='<span style="color:#10b981">Correct! +2 stars!</span>';}else{fb.innerHTML='<span style="color:#ef4444">Not quite. Target: '+tgt.map(function(m){return NN[m];}).join(', ')+'</span>';}}
 
-// SCALE EXPLORER — FIX 1: seStep starts at 0, no pre-highlighted key
+// SCALE EXPLORER
 var SCLS=[
   {n:'C Major',ivs:[0,2,4,5,7,9,11,12],root:60,c:'Western/Classical',s:'Happy, bright'},
   {n:'A Minor',ivs:[0,2,3,5,7,8,10,12],root:57,c:'Western/Romantic',s:'Sad, emotional'},
@@ -671,11 +759,10 @@ function buildScale(){
   document.getElementById('gtitle').textContent='Scale Explorer';
   document.getElementById('gdesc').textContent='Play the scale in order left to right!';
   seScale=SCLS[Math.floor(Math.random()*SCLS.length)];
-  seStep=0; // FIX 1: was seStep=1 — caused first key (idx=0) to always show "Already played"
+  seStep=0;
   document.getElementById('gcontent').innerHTML=
     '<div class="gscore">Scale: <b style="color:#fb923c">'+seScale.n+'</b></div>'+
     '<div style="font-size:0.72rem;color:#6b7a99;margin:3px 0">'+seScale.c+' - '+seScale.s+'</div>'+
-    // FIX 1: no pre-applied 'on' class — sPlay lights each key when correctly tapped
     '<div class="sgkeys" id="sgk">'+seScale.ivs.map(function(iv,i){var m=seScale.root+iv;return '<div class="sgkey" id="sk'+i+'" onclick="sPlay('+i+','+m+')">'+nL(m)+'</div>';}).join('')+'</div>'+
     '<button class="gbtn" style="background:#fb923c;color:#000;display:block;margin:6px auto" onclick="fullScale()">Hear Full Scale</button>'+
     '<button class="gbtn" style="background:#374151;color:#e5e7eb;display:block;margin:0 auto" onclick="buildScale()">New Scale</button>'+
@@ -692,10 +779,12 @@ function sPlay(idx,midi){
   }else if(idx<seStep){
     if(fb)fb.innerHTML='<span style="color:#94a3b8">Already played!</span>';
   }else{
-    if(fb)fb.innerHTML='<span style="color:#ef4444">Play in order! Next is step '+(seStep+1)+'</span>';
+    if(fb)fb.innerHTML='<span style="color:#ef4444">Play in order! Next: step '+(seStep+1)+'</span>';
   }
 }
 function fullScale(){if(!seScale)return;seScale.ivs.forEach(function(iv,i){setTimeout(function(){resume();playPiano(seScale.root+iv,0.5,0.36);},i*340);});}
+
+
 
 // ============================================================
 // ORIENTATION LOCK
