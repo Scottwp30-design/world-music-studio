@@ -169,7 +169,7 @@ padding-right:env(safe-area-inset-right);}
 #gmodal{display:none;position:fixed;inset:0;background:#000000cc;z-index:999;align-items:center;justify-content:center}
 #gmodal.on{display:flex}
 #gbox{background:#111827;border-radius:18px;padding:20px;width:min(92vw,560px);max-height:88vh;overflow-y:auto;border:1px solid #1f2937;box-shadow:0 20px 60px #000000aa;position:relative}
-#gmclose{position:sticky;bottom:0;width:100%;margin-top:16px;padding:12px;background:#374151;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:0.02em}
+#gmclose{display:block;width:100%;margin-top:16px;padding:12px;background:#374151;color:#fff;border:none;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:0.02em}
 #gtitle{font-size:1.1rem;font-weight:900;margin-bottom:2px}
 #gdesc{font-size:0.74rem;color:#6b7a99;margin-bottom:14px}
 .gscore{font-size:0.82rem;font-weight:800;color:#fbbf24;margin-bottom:8px}
@@ -586,41 +586,54 @@ function buildEar(){
   eScore=0;eRound=0;eDone=false;nextEar();
 }
 function nextEar(){
-  if(eRound>=eTotal){document.getElementById('gcontent').innerHTML='<div style="text-align:center;font-size:1.1rem;font-weight:900">Done! '+eScore+'/'+eTotal+'<br><br><button class="gbtn" style="background:#3b82f6;color:#fff" onclick="addStars('+eScore+');buildEar()">Play Again</button></div>';return;}
+  if(eRound>=eTotal){
+    document.getElementById('gcontent').innerHTML='<div style="text-align:center;font-size:1.1rem;font-weight:900">Done! '+eScore+'/'+eTotal+'<br><br><button class="gbtn" style="background:#3b82f6;color:#fff" onclick="addStars('+eScore+');buildEar()">Play Again</button></div>';
+    return;
+  }
   eRound++;eDone=false;
   var pool=[60,62,64,65,67,69,71,72,74];
-  eAns=pool[Math.floor(Math.random()*pool.length)];
-  var opts=new Set([eAns]);
+  // Capture answer as LOCAL variable — never use global eAns in callbacks
+  var ans=pool[Math.floor(Math.random()*pool.length)];
+  eAns=ans;
+  var opts=new Set([ans]);
   while(opts.size<4)opts.add(pool[Math.floor(Math.random()*pool.length)]);
   var arr=Array.from(opts).sort(function(){return Math.random()-0.5;});
-  document.getElementById('gcontent').innerHTML=
-    '<div class="pbar"><div class="pfill" style="width:'+Math.round(eRound/eTotal*100)+'%"></div></div>'+
-    '<div class="gscore">Round '+eRound+'/'+eTotal+' Score: '+eScore+'</div>'+
-    '<button class="gbtn" style="background:#1d4ed8;color:#fff;display:block;margin:8px auto" onclick="resume();playPiano('+eAns+',1.3,0.44)">Play Note</button>'+
+  var gc=document.getElementById('gcontent');
+  gc.innerHTML=
+    '<div class="pbar"><div class="pfill" id="epfill" style="width:'+Math.round(eRound/eTotal*100)+'%"></div></div>'+
+    '<div class="gscore">Round '+eRound+'/'+eTotal+' &nbsp;|&nbsp; Score: '+eScore+'</div>'+
+    '<button class="gbtn" id="eplaybtn" style="background:#1d4ed8;color:#fff;display:block;margin:8px auto">&#9654; Play Note</button>'+
     '<div class="eopts" id="earopts">'+arr.map(function(n){return '<div class="eopt" data-midi="'+n+'">'+nL(n)+'</div>';}).join('')+'</div>'+
     '<div class="gfb" id="efb"></div>';
+  // Attach play button with local ans
+  var pbtn=document.getElementById('eplaybtn');
+  if(pbtn){(function(a){pbtn.addEventListener('click',function(){resume();playPiano(a,1.3,0.44);});})(ans);}
+  // Attach answer buttons with local ans
   setTimeout(function(){
     var container=document.getElementById('earopts');
-    if(container){
-      // FIX 3: capture container + answer for THIS round in closure — immune to round transitions
-      (function(el,ans){
-        el.addEventListener('click',function(e){
-          var t=e.target;if(!t.classList.contains('eopt'))return;
-          if(eDone)return;eDone=true;
-          var ok=+t.dataset.midi===ans;
-          if(ok){eScore++;resume();playPiano(+t.dataset.midi,0.5,0.38);}
-          el.querySelectorAll('.eopt').forEach(function(o){
-            var v=+o.dataset.midi;
-            o.classList.add(v===ans?'ok':(o===t&&!ok?'no':''));
-            o.style.pointerEvents='none';
-          });
-          var fb=document.getElementById('efb');
-          if(fb)fb.innerHTML=ok?'<span style="color:#10b981">Correct!</span>':'<span style="color:#ef4444">It was '+nL(ans)+'</span>';
-          setTimeout(nextEar,1100);
+    if(!container)return;
+    (function(el,a){
+      el.addEventListener('click',function(e){
+        var t=e.target;
+        if(!t.classList.contains('eopt'))return;
+        if(eDone)return;
+        eDone=true;
+        var picked=+t.dataset.midi;
+        var ok=(picked===a);
+        if(ok){eScore++;resume();playPiano(picked,0.5,0.38);}
+        el.querySelectorAll('.eopt').forEach(function(o){
+          var v=+o.dataset.midi;
+          o.classList.add(v===a?'ok':(o===t&&!ok?'no':''));
+          o.style.pointerEvents='none';
         });
-      })(container,eAns);
-    }
-    resume();playPiano(eAns,1.3,0.44);
+        var fb=document.getElementById('efb');
+        if(fb)fb.innerHTML=ok
+          ?'<span style="color:#10b981">Correct!</span>'
+          :'<span style="color:#ef4444">It was '+nL(a)+'</span>';
+        setTimeout(nextEar,1100);
+      });
+    })(container,ans);
+    resume();playPiano(ans,1.3,0.44);
   },50);
 }
 
